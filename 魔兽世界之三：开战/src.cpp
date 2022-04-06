@@ -1,592 +1,675 @@
-#include <iostream>
-#include <cstring>
-#include <algorithm>
-#include <cmath>
-#include <vector>
+#include<iostream>
+#include<cstring>
+#include<iomanip>
+#include<cstdio>
+#include<typeinfo>
 using namespace std;
-/*
-string Warrior::names[WARRIOR_NUM] = { "dragon","ninja","iceman","lion","wolf" };
-红方司令部按照 iceman、lion、wolf、ninja、dragon 的顺序制造武士。
-蓝方司令部按照 lion、dragon、ninja、iceman、wolf 的顺序制造武士。
-*/
-int T,m,n,r,k,t;
-class Camp;
-class Attribute;
-class City;
-City *pCity[1000];
-class Warrior
+ 
+int soldier_HP[5];
+char soldier_name[5][20] = {"iceman", "lion", "wolf", "ninja", "dragon"};
+char weapon_name[3][20] = {"sword", "bomb", "arrow"};
+int soldier_force[5];
+int city_number, time_limited;
+ 
+//different soldier class
+//model class
+class csoldier
+{
+public:
+    int HP, force, locate, id;
+	int weapon[4];
+	int weapen_amount;
+	csoldier() { memset(weapon, 0, sizeof(weapon)); }
+    virtual ~csoldier(){}
+ 
+//第n次交手应该使用的武器，n已经考虑过通过循环处理
+	int getweapon(int &n)
+	{
+	    bool flag = false;
+	    if (weapen_amount <= n) flag = true;
+		if (n <= weapon[0])
+		{
+			++n;
+			if(flag) n = 1;
+			return 0;
+		}
+		else if (n <= weapon[0] + weapon[1])
+		{
+			weapon[1]--;
+			weapen_amount--;
+			if(flag) n = 1;
+			return 1;
+		}
+		else if (n <= weapon[3] + weapon[0] + weapon[1])
+		{
+			weapon[3]--;
+			weapen_amount--;
+			if(flag) n = 1;
+			return 2;
+		}
+		else if (n <= weapen_amount)
+		{
+ 
+			weapon[2]--;
+			weapon[3]++;
+			++n;
+			if(flag) n = 1;
+			return 2;
+		}
+		cout << "wrong!" << endl;
+	}
+	virtual void out_name() = 0;
+    friend class battlefield;
+};
+ 
+class dragon:public csoldier
 {
 private:
-    Camp *pc;
-    int wa_id;//武士的种类编号 0 dragon 1 ninja 2 iceman 3 lion 4 wolf
-    int no;//武士的制造编号
-    int city_id;//武士所处的城市编号
-    int win_times{0};//打胜仗的次数
-    int win{0};//最近一次是否打赢
-    bool alive = true;
-public:
-    static const char name[5][7];
-    static int health[5];
-    static int attack[5];
-    friend class City;
-    Warrior(Camp *p,int no_,int wa_id_);
-    void Print(int hour);
-    void Run(const int& hour);
-    void Move(const int& hour);
-    //void Grab(const int& hour);
-    static int Attack(Warrior* me,Warrior *enemy, const int& hour);
-    void Yell(const int &hour) const;
+    friend class battlefield;
+    //constructor
+    dragon(int n, int color):csoldier()
+    {
+        weapon[n % 3] = 1;
+		weapen_amount = 1;
+		force = soldier_force[4];
+		locate = ((color == 0)? 0 : city_number + 1);
+		HP = soldier_HP[4];
+		id = n;
+    }
+    //destructor
+    ~dragon(){}
+	virtual void out_name()
+	{
+		cout << "dragon " << id;
+	}
 };
-class Camp
+ 
+class ninja:public csoldier
 {
 private:
-    int HP;
-    bool sign;
-    int wa_num;
-    int color;
-    int wa_id;//当前要制造的武士是制造序列中的第几个
-    int warrior[5];//存放每种武士的数量
-    //double morale=0;//士气
-    //int loyalty=0;//忠诚度
-    //int weapon_id=0;//主手武器
-    //int weapon2_id=0;//ninja的副手武器
-    //int damage=0;//武器伤害
-    Warrior *pWarrior[1000];
-    Attribute * pAttribute[1000];
-public:
-    friend class Warrior;
-    friend class Attribute;
-    friend class City;
-    static int Seq[2][5]; //武士的制作顺序序列
-    Camp() = default;
-    Camp(int color,int health) : color(color),HP(health){
-        wa_num=0;
-        sign=false;
-        wa_id=0;
-        memset(warrior,0,sizeof(warrior));
-    }
-    //void Init(int coco,int health);
-    ~Camp();
-    bool Produce(const int& hour);
-    void Run_at5(const int& hour);
-    void Move(const int& hour);
-    //void Grab(const int& hour);
-    //void Attack(const int &hour);
-
-    string Get_Color() const;
-    int city() const;
+    friend class battlefield;
+	ninja(int n, int color) :csoldier()
+	{
+		weapon[n % 3] = 1;
+		weapon[(n + 1) % 3] = 1;
+		weapen_amount = 2;
+		force = soldier_force[3];
+		locate = ((color == 0) ? 0 : city_number + 1);
+		HP = soldier_HP[3];
+		id = n;
+	}
+    ~ninja(){}
+	virtual void out_name()
+	{
+		cout << "ninja " << id;
+	}
 };
-class Attribute{
+ 
+class iceman:public csoldier
+{
 private:
-    int wa_num{0};
-    int wa_id{0};//当前要制造的武士是制造序列中的第几个
-    //int warrior[5];//存放每种武士的数量
-    //Warrior *pWarrior[1000];
-
-    double morale=0;//士气
-    int loyalty=0;//忠诚度
-    int weapon_id[3]{0};//三种武器
-    int elements;//生命值
-    int damage=0;//武器伤害
-    int damage_of_sword[11]{0};
-    int to_use;//接下来要用的武器
-    int to_use_num{1};//以防要用的武器重号，加以区分
-    std::vector <int> durable;//储存箭的耐久
-    int total{0};
-public:
-    static const char weapon[3][6];
-    friend class Camp;
-    friend class Warrior;
-    friend class City;
-    Attribute(Camp* pCamp, const int& wa_num, const int& wa_id){
-        Attribute::wa_num=wa_num;
-        Attribute::wa_id=wa_id;
-        elements = Warrior::health[wa_id];
-        damage = Warrior::attack[wa_id];
-        damage_of_sword[0] = damage * 2 / 10;
-        //编号为n的dragon降生时即获得编号为n%3 的武器。dragon在战斗结束后，如果还没有战死，就会欢呼。
-        if (wa_id==0){
-            to_use = wa_num%3;
-            weapon_id[to_use]++;
-            /**morale = double(pCamp->HP) / Warrior::health[0];*/
-            total++;
-        }
-            //ninja可以拥有两件武器。编号为n的ninja降生时即获得编号为 n%3 和 (n+1)%3的武器。ninja 使用bomb不会让自己受伤。
-        else if (wa_id==1){
-            to_use = min(wa_num%3,(wa_num+1)%3);
-            weapon_id[wa_num%3]++;
-            weapon_id[(wa_num+1)%3]++;
-            total+=2;
-            if (wa_num%3 == 1) durable.push_back(2);
-        }
-            //编号为n的iceman降生时即获得编号为n%3 的武器。iceman每前进一步，生命值减少10%(减少的量要去尾取整)。
-        else if (wa_id==2){
-            to_use = wa_num%3;
-            weapon_id[to_use]++;
-            total++;
-        }
-            //编号为n的lion降生时即获得编号为n%3 的武器。lion 有“忠诚度”这个属性，其初始值等于它降生之后其司令部剩余生命元的数目。每前进一步忠诚度就降低K。忠诚度降至0或0以下，则该lion逃离战场,永远消失。但是已经到达敌人司令部的lion不会逃跑。lion在己方司令部可能逃跑。
-        else if (wa_id==3){
-            to_use = wa_num%3;
-            weapon_id[to_use]++;
-            loyalty=pCamp->HP;
-            total++;
-        }
-        //wolf降生时没有武器，但是在战斗开始前会抢到敌人编号最小的那种武器。如果敌人有多件这样的武器，则全部抢来。Wolf手里武器也不能超过10件。如果敌人arrow太多没法都抢来，那就先抢没用过的。如果敌人也是wolf，则不抢武器。
-        else{
-
-        }
-        if (to_use == 2) durable.push_back(2);
-    }
-
-    int Damage(){//计算接下来对对手的伤害
-        if (total<=0) return 0;
-        int damage_;
-        switch (to_use) {
-            case 0: damage_ = damage_of_sword[0];/**damage_of_sword[to_use_num] = damage_of_sword[to_use_num] * 8 /10;*/break;
-            case 1: damage_ = damage * 4 / 10;--total;--to_use_num;break;
-            case 2:
-                damage_ = damage * 3 / 10;
-                --durable[0];
-                if (!durable[0]) {
-                    durable.erase(durable.begin());
-                    --total;
-                    --weapon_id[2];
-                    to_use_num--;
-                }
-                break;
-
-        }
-        int cnt = 0;
-        if (++to_use_num > weapon_id[to_use]){//超过限度后换用下一种武器。（进位）
-            to_use_num = 1;
-            to_use = (to_use+1)%3;
-            while (!weapon_id[to_use] && cnt++ < 3) {
-                to_use = (to_use+1)%3;
-            }
-        }
-        return damage_;
-    }
-
+    friend class battlefield;
+	iceman(int n, int color) :csoldier()
+	{
+		weapon[(n % 3)] = 1;
+		weapen_amount = 1;
+		force = soldier_force[0];
+		locate = ((color == 0) ? 0 : city_number + 1);
+		HP = soldier_HP[0];
+		id = n;
+	}
+	virtual void out_name()
+	{
+		cout << "iceman " << id;
+	}
 };
-class City{
+ 
+class lion:public csoldier
+{
 private:
-    //Camp *pCamp;
-    Warrior *pWarriorRed,*pWarriorBlue;
-    //City *pCity;
-    Attribute* pAttribute;
-    int city_id;
-    bool update_r = false;//该次是否更新了城中红武士？
-    bool update_b = false;//该次是否更新了城中蓝武士？
-    int flag = -1;//插旗
-    int streak{0};//连胜，红方为正次数，蓝方为负次数
+    friend class battlefield;
+    int loyalty;
+	lion(int n, int color, int hp) :csoldier(), loyalty(hp)
+	{
+		weapon[n % 3] = 1;
+		weapen_amount = 1;
+		force = soldier_force[1];
+		locate = ((color == 0) ? 0 : city_number + 1);
+		HP = soldier_HP[1];
+		id = n;
+		cout << "Its loyalty is " << loyalty << endl;
+	}
+	virtual void out_name()
+	{
+		cout << "lion " << id;
+	}
 public:
-    friend class Camp;
-    friend class Attribute;
-    friend class Warrior;
-    City() = default;
-    City(Warrior* pWarriorRed, Warrior* pWarriorBlue, int city_id) : pWarriorRed(pWarriorRed),pWarriorBlue(pWarriorBlue),city_id(city_id){}
-    ~City(){}
-
-    void report(const int& hour){
-        if (!update_r && !update_b) return;
-        if (update_r) printf("%03d:10 red %s %d marched to city %d with %d elements and force %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->elements,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->damage);
-        if (update_b) printf("%03d:10 blue %s %d marched to city %d with %d elements and force %d\n",hour,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->elements,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->damage);
-        update_r = update_b = false;
-    }
-    void Grab(const int& hour){
-        if (pWarriorRed == nullptr || pWarriorBlue == nullptr) return;
-        if (pWarriorRed->wa_id!=4 && pWarriorBlue->wa_id != 4) return;
-        if (pWarriorRed->wa_id + pWarriorBlue->wa_id >= 8) return;
-        Attribute *pr = pWarriorRed->pc->pAttribute[pWarriorBlue->no - 1];
-        Attribute *pb = pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1];
-        int cnt = 0,category;
-        if (pWarriorRed->wa_id == 4) {//抢劫蓝方武器
-            if (pr->total >= 10) return;
-            if (pb->weapon_id[0]) {
-                while (pb->weapon_id[0] && pr->total < 10){
-                    ++cnt;
-                    pb->weapon_id[0]--;
-                    pb->total--;
-                    pr->weapon_id[0]++;
-                    pr->total++;
-                }
-                printf("%03d:35 red wolf %d took %d %s from blue %s %d in city %d\n",hour,pWarriorRed->no,cnt,Attribute::weapon[0],Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-            }
-            else if (pb->weapon_id[1]) {
-                while (pb->weapon_id[1] && pr->total < 10){
-                    ++cnt;
-                    pb->weapon_id[1]--;
-                    pb->total--;
-                    pr->weapon_id[1]++;
-                    pr->total++;
-                }
-                printf("%03d:35 red wolf %d took %d %s from blue %s %d in city %d\n",hour,pWarriorRed->no,cnt,Attribute::weapon[1],Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-            }
-            else if (pb->weapon_id[2]){
-                sort(pb->durable.begin(),pb->durable.end());
-                while (pb->weapon_id[2] && pr->total < 10){
-                    ++cnt;
-                    pb->weapon_id[2]--;
-                    pb->total--;
-                    pr->weapon_id[2]++;
-                    pr->total++;
-                    pr->durable.push_back(pb->durable[pb->durable.size() - 1]);
-                    pb->durable.pop_back();
-                }
-                printf("%03d:35 red wolf %d took %d %s from blue %s %d in city %d\n",hour,pWarriorRed->no,cnt,Attribute::weapon[2],Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-            }
-        }
-        else {
-            if (pb->total >= 10) return;
-            if (pr->weapon_id[0]) {
-                while (pr->weapon_id[0] && pb->total < 10){
-                    ++cnt;
-                    pr->weapon_id[0]--;
-                    pr->total--;
-                    pb->weapon_id[0]++;
-                    pb->total++;
-                }
-                printf("%03d:35 blue wolf %d took %d %s from red %s %d in city %d\n",hour,pWarriorBlue->no,cnt,Attribute::weapon[0],Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id);
-            }
-            else if (pr->weapon_id[1]) {
-                while (pr->weapon_id[1] && pb->total < 10) {
-                    ++cnt;
-                    pr->weapon_id[1]--;
-                    pr->total--;
-                    pb->weapon_id[1]++;
-                    pb->total++;
-                }
-                printf("%03d:35 blue wolf %d took %d %s from red %s %d in city %d\n",hour,pWarriorBlue->no,cnt,Attribute::weapon[1],Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id);
-            }
-            else if (pr->weapon_id[2]){
-                while (pr->weapon_id[2] && pb->total < 10) {
-                    ++cnt;
-                    pr->weapon_id[2]--;
-                    pr->total--;
-                    pb->weapon_id[2]++;
-                    pb->total++;
-                    pb->durable.push_back(pr->durable[pr->durable.size() - 1]);
-                    pb->durable.pop_back();
-                }
-                printf("%03d:35 blue wolf %d took %d %s from red %s %d in city %d\n",hour,pWarriorBlue->no,cnt,Attribute::weapon[2],Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id);
-            }
-        }
-    }
-    void Attack_Yell(const int& hour){
-        if (pWarriorRed == nullptr || pWarriorBlue == nullptr) return;
-        //Attack部分
-        int red{1},blue{1};//红蓝方是否存活
-        int win=-1,a,cnt=0;//同时存活为-1，红方赢为0，蓝方赢为1，平局为2
-        if (flag == 0 || (city_id % 2 && flag != 1))//红武士先发动进攻
-            do{
-                a=Warrior::Attack(pWarriorRed,pWarriorBlue,hour);
-                red = a/10;
-                blue = a%10;
-                if (red + blue == 1) {
-                    if (red) {
-                        printf("%03d:40 red %s %d killed blue %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->elements);
-                        pWarriorRed->win=1;
-                        ++pWarriorRed->win_times;
-                        pWarriorBlue->win =0;
-                        --pWarriorBlue->win_times;
-                        pWarriorBlue->alive = false;
-                        win=0;
-                    }
-                    else {
-                        printf("%03d:40 blue %s %d killed red %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorBlue->wa_id],pWarriorRed->no,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->elements);
-                        pWarriorRed->win=0;
-                        --pWarriorRed->win_times;
-                        pWarriorBlue->win=1;
-                        ++pWarriorBlue->win_times;
-                        pWarriorRed->alive = false;
-                        win=1;
-                    }
-                    break;
-                }
-                else if (!red && !blue) {
-                    printf("%03d:40 both red %s %d and blue %s %d died in city %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-                    pWarriorRed->alive = pWarriorBlue->alive = false;
-                    pWarriorRed->win=0;
-                    pWarriorBlue->win =0;
-                    win=2;
-                    break;
-                }
-                a=Warrior::Attack(pWarriorBlue,pWarriorRed,hour);
-                red = a%10;
-                blue = a/10;
-                if (red + blue == 1) {
-                    if (red) {
-                        printf("%03d:40 red %s %d killed blue %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->elements);
-                        pWarriorRed->win=1;
-                        ++pWarriorRed->win_times;
-                        pWarriorBlue->win =0;
-                        --pWarriorBlue->win_times;
-                        pWarriorBlue->alive = false;
-                        win=0;
-                    }
-                    else {
-                        printf("%03d:40 blue %s %d killed red %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorBlue->wa_id],pWarriorRed->no,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->elements);
-                        pWarriorRed->win=0;
-                        --pWarriorRed->win_times;
-                        pWarriorBlue->win=1;
-                        ++pWarriorBlue->win_times;
-                        pWarriorRed->alive = false;
-                        win=1;
-                    }
-                    break;
-                }
-                else if (!red && !blue) {
-                    printf("%03d:40 both red %s %d and blue %s %d died in city %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-                    pWarriorRed->win=0;
-                    pWarriorBlue->win=0;
-                    pWarriorRed->alive = pWarriorBlue->alive = false;
-                    win=2;
-                    break;
-                }
-            }while(win < 0 && cnt<20);/**还要控制Damage()都是0时不要死循环*/
-
-        else if (flag == 1 || 1 - city_id % 2) //蓝武士先发动进攻
-            do{
-                a=Warrior::Attack(pWarriorBlue,pWarriorRed,hour);
-                red = a%10;
-                blue = a/10;
-                if (red + blue == 1) {
-                    if (red) {
-                        printf("%03d:40 red %s %d killed blue %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->elements);
-                        pWarriorRed->win=1;
-                        ++pWarriorRed->win_times;
-                        pWarriorBlue->win=0;
-                        --pWarriorBlue->win_times;
-                        pWarriorBlue->alive = false;
-                        win=0;
-                    }
-                    else {
-                        printf("%03d:40 blue %s %d killed red %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorBlue->wa_id],pWarriorRed->no,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->elements);
-                        pWarriorRed->win=0;
-                        --pWarriorRed->win_times;
-                        pWarriorBlue->win=1;
-                        ++pWarriorBlue->win_times;
-                        pWarriorRed->alive = false;
-                        win=1;
-                    }
-                    break;
-                }
-                else if (!red && !blue) {
-                    printf("%03d:40 both red %s %d and blue %s %d died in city %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-                    pWarriorRed->win=0;
-                    pWarriorBlue->win=0;
-                    pWarriorRed->alive = pWarriorBlue->alive = false;
-                    win=2;
-                    break;
-                }
-                a=Warrior::Attack(pWarriorRed,pWarriorBlue,hour);
-                red = a/10;
-                blue = a%10;
-                if (red + blue == 1) {
-                    if (red) {
-                        printf("%03d:40 red %s %d killed blue %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id,pWarriorRed->pc->pAttribute[pWarriorRed->no - 1]->elements);
-                        pWarriorRed->win=1;
-                        ++pWarriorRed->win_times;
-                        pWarriorBlue->win=0;
-                        --pWarriorBlue->win_times;
-                        pWarriorBlue->alive = false;
-                        win=0;
-                    }
-                    else {
-                        printf("%03d:40 blue %s %d killed red %s %d in city %d remaining %d elements\n",hour,Warrior::name[pWarriorBlue->wa_id],pWarriorRed->no,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,city_id,pWarriorBlue->pc->pAttribute[pWarriorBlue->no - 1]->elements);
-                        pWarriorRed->win=0;
-                        --pWarriorRed->win_times;
-                        pWarriorBlue->win=1;
-                        ++pWarriorBlue->win_times;
-                        pWarriorRed->alive = false;
-                        win=1;
-                    }
-                    break;
-                }
-                else if (!red && !blue) {
-                    printf("%03d:40 both red %s %d and blue %s %d died in city %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-                    pWarriorRed->win=0;
-                    pWarriorBlue->win=0;
-                    pWarriorRed->alive = pWarriorBlue->alive = false;
-                    win=2;
-                    break;
-                }
-            }while(win < 0 && cnt<20);/**还要控制Damage()都是0时不要死循环*/
-        if (win == -1) {
-            pWarriorRed->win=0;
-            pWarriorBlue->win=0;
-            printf("%03d:40 both red %s %d and blue %s %d were alive in city %d\n",hour,Warrior::name[pWarriorRed->wa_id],pWarriorRed->no,Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
-        }
-        //Yell部分
-        pWarriorRed->Yell(hour);
-        pWarriorBlue->Yell(hour);
-    }
+	static int K;
 };
-
-const char Warrior::name[5][7]={ "dragon","ninja","iceman","lion","wolf" };
-const char Attribute::weapon[3][6]={"sword","bomb","arrow"};
-int Warrior::health[5];
-int Warrior::attack[5];
-int Camp::Seq[2][5] = { { 2,3,4,1,0 },{3,0,1,2,4} }; //两个司令部武士的制作顺序序列
-
-Warrior::Warrior( Camp *pCamp,int no_,int kindNo_) : no(no_),wa_id(kindNo_),pc(pCamp),city_id(pCamp->city()),alive(true){}
-void Warrior::Print(int hour)
+int lion::K = 0;
+ 
+class wolf:public csoldier
 {
-    string color=pc->Get_Color();
-
-    printf("%03d:00 %s %s %d born with strength %d,%d %s in %s headquarter\n",
-           hour, color.c_str(), name[wa_id], no, health[wa_id],
-           pc->warrior[wa_id], name[wa_id], color.c_str());
-    if (wa_id == 0)
-        printf("It has a %s\n", Attribute::weapon[pc->pAttribute[no - 1]->weapon_id[0]]);
-    else if (wa_id == 1)
-        printf("It has a %s and a %s\n", Attribute::weapon[pc->pAttribute[no - 1]->weapon_id[0]],
-               Attribute::weapon[pc->pAttribute[no - 1]->weapon_id[1]]);
-    else if (wa_id == 2) printf("It has a %s\n", Attribute::weapon[pc->pAttribute[no - 1]->weapon_id[0]]);
-    else if (wa_id == 3) printf("It's loyalty is %d\n", pc->pAttribute[no - 1]->loyalty);
-
-
-}
-void Warrior::Run(const int &hour) {
-    if (wa_id == 3 && alive && pc->pAttribute[no - 1]->loyalty<=0){
-        alive = false;
-        printf("%03d:05 %s lion %d ran away\n",hour,pc->Get_Color().c_str(),no);
+	wolf(int n, int color) :csoldier()
+	{
+		weapen_amount = 0;
+		force = soldier_force[2];
+		locate = ((color == 0) ? 0 : city_number + 1);
+		HP = soldier_HP[2];
+		id = n;
+	}
+	virtual void out_name()
+	{
+		cout << "wolf " << id;
+	}
+private:
+    friend class battlefield;
+};
+ 
+class battlefield
+{
+private:
+    int hour, minute, soldier_total[2], cur[2];
+    int HP[2];
+    char name[2][20];
+    bool produce_end[2];//if production is carrying on, it is false, if else it is true
+    csoldier ***head;
+    int soldier[5];//in the order of iceman¡¢lion¡¢wolf¡¢ninja¡¢dragon
+public:
+	int arr[2][5] = { {0, 1, 2, 3, 4} ,{1, 4, 3, 0, 2} };
+    //int arr[5] = {1, 4, 3, 0, 2};
+	battlefield(int n) :HP{ n, n}, hour(0), minute(0), produce_end{ true,true }
+    {
+		soldier_total[0] = soldier_total[1] = 0;
+		cur[0] = cur[1] = -1;
+		strcpy(name[0], "red");
+		strcpy(name[1], "blue");
+        memset(soldier, 0, sizeof(soldier));
+		head = new csoldier** [city_number + 2];
+		for (int i = 0; i < city_number + 2; ++i)
+		{
+			head[i] = new csoldier*[4];
+			memset(head[i], NULL, sizeof(csoldier*) * 4);
+		}
     }
-}
-void Warrior::Move(const int& hour){
-    if (alive){
-
-        if (pc->color && city_id > 0) {
-            pCity[city_id]->pWarriorBlue = nullptr;
-            pCity[--city_id]->pWarriorBlue = this;
-            pCity[city_id]->update_b = true;
-            if (wa_id == 2) pc->pAttribute[no - 1]->elements -= pc->pAttribute[no - 1]->elements/10; //不知这样有没有问题
-            else if (wa_id == 3) pc->pAttribute[no - 1]->loyalty-=k;
-            //pc->pAttribute[no-1]->Damage();
-        }//蓝色阵营
-        else if (!pc->color && city_id < n+1) {
-            pCity[city_id]->pWarriorRed = nullptr;
-            pCity[++city_id]->pWarriorRed = this;
-            pCity[city_id]->update_r = true;
-            if (wa_id == 2) pc->pAttribute[no - 1]->elements -= pc->pAttribute[no - 1]->elements/10; //不知这样有没有问题
-            else if (wa_id == 3) pc->pAttribute[no - 1]->loyalty-=k;
-            //pc->pAttribute[no-1]->Damage();
-        }//红色阵营
+	//输出当前时间
+    void out_time()
+    {
+        cout << setfill('0') << setw(3) << hour << ':' << setfill('0') << setw(2) << minute;
+		return;
     }
-}
-int Warrior::Attack(Warrior* me, Warrior *enemy, const int& hour) {
-    int &enemy_life = enemy->pc->pAttribute[enemy->no - 1]->elements;
-    int &my_life = me->pc->pAttribute[enemy->no - 1]->elements;
-    int isBomb = false;
-    if (me->pc->pAttribute[me->no - 1]->to_use == 1) isBomb = true;
-    int damage = me->pc->pAttribute[me->no - 1]->Damage();
-    enemy_life -= damage;
-    if (isBomb && me->wa_id!=1) my_life -= damage/2;
-    return (my_life>0)*10 + (enemy_life > 0);//十位数，十位是我方是否存活，个位是敌方是否存活
-}
-void Warrior::Yell(const int &hour) const{
-    if (wa_id>0) return;
-    printf("%03d:40 %s dragon yelled in city %d\n",hour,pc->Get_Color().c_str(),city_id);
-}
-/*
-void Camp::Init(int coco,int health)
-{
-    color=coco;
-    HP=health;
-    wa_num=0;
-    sign=false;
-    wa_id=0;
-    memset(warrior,0,sizeof(warrior));
-}
- */
-Camp::~Camp()
-{
-    for(int i=0;i<wa_num;i++){
-        delete pWarrior[i];
-        delete pAttribute[i];
+ 
+	//base produce soldiers. if base produce soldier sucessfully, return true;if else return false;
+    bool produce(int color)
+    {
+        if(produce_end[color] == false)
+            return false;
+        cur[color] = (cur[color] + 1) % 5;
+        int t = arr[color][cur[color]];
+        if(HP[color] >= soldier_HP[t])
+        {
+            HP[color] -= soldier_HP[t];
+            soldier[t]++;
+            soldier_total[color]++;
+			out_time();
+			cout << ' ' << name[color] << ' ' << soldier_name[t] << ' ' << soldier_total[color] << " born"<< endl;
+			int pos = ((color == 0) ? 0 : city_number + 1);
+            switch(t)
+            {
+                case 0: head[pos][color] = new iceman(soldier_total[color], color);break;
+                case 1: head[pos][color] = new lion(soldier_total[color], color, HP[color]);break;
+                case 2: head[pos][color] = new wolf(soldier_total[color], color);break;
+                case 3: head[pos][color] = new ninja(soldier_total[color], color);break;
+                case 4: head[pos][color] = new dragon(soldier_total[color], color);break;
+            }
+            return true;
+        }
+        else
+        {
+			produce_end[color] = false;
+			return false;
+        }
     }
-}
-bool Camp::Produce(const int& time)
-{
-    if(sign) return false;
-
-    int kind=Seq[color][wa_id];
-    if( Warrior::health[kind]>HP){
-        sign=true;
-        //if(color) printf("%03d:00 blue headquarter stops making warriors\n",time);
-        //else printf("%03d:00 red headquarter stops making warriors\n",time);
-        return false;
+	//renew location
+	void clear()
+	{
+		for (int i = 0; i <= city_number + 1; ++i)
+		{
+			head[i][0] = head[i][2];
+			head[i][1] = head[i][3];
+			head[i][2] = head[i][3] = NULL;
+		}
+		return;
+	}
+ 
+	//soldiers start moving
+	bool march()
+	{
+		bool flag = true;
+ 
+		if (head[1][1] != NULL)
+		{
+			if (typeid(*head[1][1]) == typeid(iceman))
+				head[1][1]->HP -= head[1][1]->HP / 10;
+			out_time();
+			cout << " blue "; head[1][1]->out_name();
+			printf(" reached red headquarter with %d elements and force %d\n", head[1][1]->HP, head[1][1]->force);
+			head[0][3] = head[1][1];
+			out_time();
+			cout << " red headquarter was taken" << endl;
+			flag = false;
+		}
+		for (int i = 1; i <= city_number; ++i)
+		{
+			if (head[i - 1][0] != NULL)
+			{
+				if (typeid(*head[i - 1][0]) == typeid(iceman))
+					head[i - 1][0]->HP -= head[i - 1][0]->HP / 10;
+				out_time();
+				cout << " red "; head[i - 1][0]->out_name();
+				printf(" marched to city %d with %d elements and force %d\n",i, head[i-1][0]->HP, head[i-1][0]->force);
+				head[i][2] = head[i - 1][0];
+			}
+			if (head[i + 1][1] != NULL)
+			{
+				if (typeid(*head[i + 1][1]) == typeid(iceman))
+					head[i + 1][1]->HP -= head[i + 1][1]->HP / 10;
+				out_time();
+				cout << " blue "; head[i + 1][1]->out_name();
+				printf(" marched to city %d with %d elements and force %d\n", i, head[i + 1][1]->HP, head[i + 1][1]->force);
+				head[i][3] = head[i + 1][1];
+			}
+		}
+		if (head[city_number][0] != NULL)
+		{
+			if (typeid(*head[city_number][0]) == typeid(iceman))
+				head[city_number][0]->HP -= head[city_number][0]->HP / 10;
+			out_time();
+			cout << " red "; head[city_number][0]->out_name();
+			printf(" reached blue headquarter with %d elements and force %d\n", head[city_number][0]->HP, head[city_number][0]->force);
+			head[city_number + 1][2] = head[city_number][0];
+			out_time();
+			cout << " blue headquarter was taken" << endl;
+			flag = false;
+		}
+		clear();
+		return flag;
+	}
+ 
+	//judge whether lion run away
+	void run_away()
+	{
+		for (int i = 0; i <= city_number + 1; ++i)
+		{
+			for (int t = 0; t < 2; ++t)
+			{
+				if (head[i][t] != NULL && typeid(*head[i][t]) == typeid(lion))
+				{
+					auto p = (lion *)head[i][t];
+					if (p->loyalty <= 0)
+					{
+						out_time();
+						cout << ' ' << name[t];
+						cout << " lion " << head[i][t]->id << " ran away" << endl;
+						delete head[i][t];
+						head[i][t] = NULL;
+						continue;
+					}
+					p->loyalty -= lion::K;
+				}
+			}
+ 
+		}
+		return;
+	}
+ 
+	//winner snatch loser's weapon
+	void snatch_weapon(csoldier *p, csoldier *q)
+	{
+		for (int i = 0; i < 4; ++i)
+		{
+			while (q->weapon[i] > 0 && p->weapen_amount < 10)
+			{
+				p->weapon[i]++;
+				q->weapon[i]--;
+				p->weapen_amount++;
+			}
+		}
+		return;
+	}
+    void out_weapen(int t)
+    {
+        switch(t)
+        {
+            case 0: cout << weapon_name[0];break;
+            case 1: cout << weapon_name[1];break;
+            case 2: cout << weapon_name[2];break;
+            case 3: cout << weapon_name[2];break;
+        }
+        return;
     }
-    //制作士兵：
-    HP-=Warrior::health[kind];
-    wa_id=(wa_id+1)%5;
-    pWarrior[wa_num]=new Warrior(this,wa_num+1,kind);
-    pAttribute[wa_num]=new Attribute(this,wa_num+1,kind);
-    warrior[kind]++;
-    pWarrior[wa_num++]->Print(time);
-    return true;
-}
-void Camp::Run_at5(const int &hour) {
-    for (int i=0;i<wa_num;++i) pWarrior[i]->Run(hour);
-}
-void Camp::Move(const int& hour){
-    for (int i=0;i<wa_num;++i) pWarrior[i]->Move(hour);
-}
-//void Camp::Grab(const int& hour){}
-
-string Camp::Get_Color() const
-{
-    if(color) return "blue";
-    else return "red";
-}
-int Camp::city() const {
-    if (color) return n+1;
-    else return 0;
-}
-
-
-
-
+	//wolf snatch enemy's weapon
+	void w_snatch_weapon(csoldier *p, csoldier *q)
+	{
+		//bool flag = true;
+ 
+		int t = 0, s = 0;
+		while (q->weapon[t] == 0)++t;
+		if (10 - p->weapen_amount <= q->weapon[t])
+		{
+			p->weapon[t] += 10 - p->weapen_amount;
+			s += 10 - p->weapen_amount;
+			p->weapen_amount = 10;
+			q->weapen_amount -= s;
+			q->weapon[t] -= s;
+			return;
+		}
+		else
+		{
+			p->weapon[t] += q->weapon[t];
+			s += q->weapon[t];
+			p->weapen_amount += q->weapon[t];
+			q->weapon[t] -= s;
+			q->weapen_amount -= s;
+			if (t == 2 && q->weapon[3] > 0)
+			{
+				t = 3;
+				if (10 - p->weapen_amount <= q->weapon[t])
+				{
+					p->weapon[t] += 10 - p->weapen_amount;
+					s += 10 - p->weapen_amount;
+					p->weapon[t] -= 10 - p->weapen_amount;
+					p->weapen_amount -= 10 - p->weapen_amount;
+					p->weapen_amount = 10;
+				}
+				else
+				{
+					p->weapon[t] += q->weapon[t];
+					s += q->weapon[t];
+					q->weapen_amount -= q->weapon[t];
+					p->weapen_amount += q->weapon[t];
+					q->weapon[t] = 0;
+				}
+			}
+			cout << s << ' ';
+            out_weapen(t);
+			return;
+		}
+	}
+ 
+	//wolf snatch enemy's weapon
+	void snatch()
+	{
+		for (int i = 1; i <= city_number; ++i)
+		{
+			csoldier *p[2] = { head[i][0], head[i][1] };
+			if (p[0] != NULL && p[1] != NULL)
+			{
+ 
+				if (typeid(*p[0]) != typeid(wolf) && typeid(*p[1]) != typeid(wolf))
+					continue;
+				else if (typeid(*p[0]) != typeid(wolf))
+				{
+				    if(p[0]->weapen_amount == 0 || p[1]->weapen_amount == 10)
+                        continue;
+					out_time(); cout << " blue ";p[1]->out_name();
+					cout << " took ";
+					w_snatch_weapon(p[1], p[0]);
+					cout << " from red ";
+					p[0]->out_name();cout << " in city " << i << endl;
+				}
+				else if (typeid(*p[1]) != typeid(wolf))
+				{
+				    if(p[1]->weapen_amount == 0 || p[0]->weapen_amount == 10)
+                        continue;
+					out_time(); cout << " red ";p[0]->out_name();
+					cout << " took ";
+					w_snatch_weapon(p[0], p[1]);
+					cout << " from blue ";
+					p[1]->out_name();cout << " in city " << i << endl;
+				}
+				else
+					continue;
+ 
+			}
+		}
+	}
+ 
+	//fight
+	void fight()
+	{
+		for (int i = 1; i <= city_number; ++i)
+		{
+			if (head[i][0] == NULL || head[i][1] == NULL)
+				continue;
+			int r = i % 2, L = r ^ 1, n[2] = {1, 1}, w, flag = 5, check[4] = {0}, cnt = 0;
+			while (true)
+			{
+				//判断是否局势改变，若不改变则为平局
+				r = r ^ 1;
+				L = L ^ 1;
+				if (cnt == 0)
+				{
+					if (check[0] == head[i][0]->HP && check[1] == head[i][1]->HP && check[2] == head[i][0]->weapen_amount && check[3] == head[i][1]->weapen_amount)
+					{
+						flag = 0;//all alive
+						break;
+					}
+					check[0] = head[i][0]->HP;
+					check[1] = head[i][1]->HP;
+					check[2] = head[i][0]->weapen_amount;
+					check[3] = head[i][1]->weapen_amount;
+					cnt = 10;
+				}
+				cnt--;
+ 
+				if (head[i][L]->weapen_amount == 0 && head[i][r]->weapen_amount == 0)
+				{
+					flag = 0;//alive
+					break;
+				}
+				if(head[i][r]->weapen_amount == 0)
+                    continue;
+				w = head[i][r]->getweapon(n[r]);
+// if(head[i][1]->id == 10)
+// cout << r << ' ' << "use weapen " << w << " in city " << i <<n[r] << endl;
+				int h;
+				switch (w)
+				{
+				case 0:
+					head[i][L]->HP -= head[i][r]->force / 5; break;
+				case 1:
+					h = head[i][r]->force * 2 / 5;
+					head[i][L]->HP -= h;
+					if(typeid(*head[i][r]) != typeid(ninja))
+                        head[i][r]->HP -= h / 2;
+					break;
+				case 2:
+					head[i][L]->HP -= head[i][r]->force * 3 / 10; break;
+				default:
+					break;
+				}
+				if (head[i][L]->HP <= 0 && head[i][r]->HP <= 0)
+				{
+					flag = 3;//all died
+					break;
+				}
+				else if (head[i][L]->HP <= 0)
+				{
+					if (L == 0)
+					{
+						flag = 2; //blue win
+						break;
+					}
+					else
+					{
+						flag = 1; //red win
+						break;
+					}
+				}
+				else if (head[i][r]->HP <= 0)
+				{
+					if (r == 0)
+					{
+						flag = 2; //blue win
+						break;
+					}
+					else
+					{
+						flag = 1; //red win
+						break;
+					}
+				}
+			}
+			out_time();
+			switch (flag)
+			{
+			case 0:
+				cout << " both red ";
+				head[i][0]->out_name();
+				cout << " and blue ";
+				head[i][1]->out_name();
+				cout << " were alive in city " << i << endl;
+				break;
+			case 3:
+				cout << " both red ";
+				head[i][0]->out_name();
+				cout << " and blue ";
+				head[i][1]->out_name();
+				cout << " died in city " << i << endl;
+				delete head[i][0];
+				delete head[i][1];
+				head[i][0] = NULL;
+				head[i][1] = NULL;
+				break;
+			case 1:
+				cout << " red ";
+				head[i][0]->out_name();
+				cout << " killed blue ";
+				head[i][1]->out_name();
+				printf(" in city %d remaining %d elements\n", i, head[i][0]->HP);
+				snatch_weapon(head[i][0], head[i][1]);
+				delete head[i][1];
+				head[i][1] = NULL;
+				break;
+			case 2:
+				cout << " blue ";
+				head[i][1]->out_name();
+				cout << " killed red ";
+				head[i][0]->out_name();
+				printf(" in city %d remaining %d elements\n", i, head[i][1]->HP);
+				snatch_weapon(head[i][1], head[i][0]);
+				delete head[i][0];
+				head[i][0] = NULL;
+				break;
+			default:
+				break;
+			}
+			for (int t = 0; t < 2; ++t)
+			{
+				if (head[i][t] != NULL && typeid(*head[i][t]) == typeid(dragon))
+				{
+					out_time(); cout << ' ' << name[t] << ' ';
+					head[i][t]->out_name();
+					cout << " yelled in city " << i << endl;
+				}
+			}
+ 
+		}
+ 
+	}
+ 
+	//base report condition
+	void base_report()
+	{
+		out_time();
+		printf(" %d elements in red headquarter\n", HP[0]);
+		out_time();
+		printf(" %d elements in blue headquarter\n", HP[1]);
+		return;
+	}
+ 
+	//soldier report
+	void soldier_report()
+	{
+		for (int i = 0; i < city_number + 1; ++i)
+		{
+			for(int t = 0; t < 2; ++t)
+				if (head[i][t] != NULL)
+				{
+					out_time();
+					cout << ' ' << name[t] << ' ';
+					head[i][t]->out_name();
+					cout << " has " << head[i][t]->weapon[0] << " sword " << head[i][t]->weapon[1] << " bomb "
+						<< head[i][t]->weapon[2] + head[i][t]->weapon[3] << " arrow and " << head[i][t]->HP << " elements" << endl;
+				}
+		}
+		return;
+	}
+ 
+	//check whether time is legal
+	bool check_time()
+	{
+		if (hour * 60 + minute > time_limited)
+			return false;
+		else
+			return true;
+	}
+ 
+	bool run()
+	{
+		minute = 0;
+		if (!check_time()) return false;
+ 
+		produce(0);
+		produce(1);
+ 
+		minute = 5;
+		if (!check_time()) return false;
+ 
+		run_away();
+ 
+		minute = 10;
+		if (!check_time()) return false;
+ 
+		if(!march())
+			return false;
+ 
+		minute = 35;
+		if (!check_time()) return false;
+ 
+		snatch();
+ 
+		minute = 40;
+		if (!check_time()) return false;
+ 
+		fight();
+ 
+		minute = 50;
+		if (!check_time()) return false;
+		base_report();
+ 
+		minute = 55;
+		if (!check_time()) return false;
+		soldier_report();
+ 
+		hour++;
+		return true;
+	}
+};
 int main()
 {
-
-    Camp Red,Blue;
-    scanf("%d",&T);
-    for(int i=1;i<=T;i++){
-        scanf("%d%d%d%d",&m,&n,&k,&t);
-        Red=Camp(0,m),Blue=Camp(1,m);
-
-        for (int i=0;i<n+2;++i) pCity[i] = new City(nullptr, nullptr, i);
-        for(int & health : Warrior::health)
-            scanf("%d",&health);
-        for(int & att : Warrior::attack)
-            scanf("%d",&att);
-        printf("Case %d:\n",i);
-        //Red.Init(0,m);
-        //Blue.Init(1,m);
-        int hour=0;
-        while (true){
-            bool sign=Red.Produce(hour);
-            bool flag=Blue.Produce(hour);
-            Red.Run_at5(hour);
-            Blue.Run_at5(hour);
-            //10分
-            Red.Move(hour);
-            Blue.Move(hour);
-            //是否抵达敌军司令部？
-            //……
-            for (int i=0;i<n+2;++i) pCity[i]->report(hour);
-            for (int i=1;i<n+1;++i) pCity[i]->Grab(hour);
-            for (int i=1;i<n+1;++i) pCity[i]->Attack_Yell(hour);
-
-            //报告应该放在这里
-            //Red.Grab(hour);
-            //Blue.Grab(hour);
-            if(!sign&&!flag) break;
-            ++hour;
-        }
-        for (int i=0;i<n+2;++i) delete pCity[i];
+    int n, hp, cnt = 0;
+    cin >> n;
+    while(n--)
+    {
+		cout << "Case " << ++cnt <<':'<< endl;
+                cin >> hp >> city_number >> lion::K >> time_limited;
+                battlefield Battle(hp);
+                cin >> soldier_HP[4] >> soldier_HP[3] >> soldier_HP[0] >> soldier_HP[1] >> soldier_HP[2];
+		cin >> soldier_force[4] >> soldier_force[3] >> soldier_force[0] >> soldier_force[1] >> soldier_force[2];
+		while (Battle.run());
+ 
     }
     return 0;
 }
