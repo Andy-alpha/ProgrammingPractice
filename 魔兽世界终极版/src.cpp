@@ -24,6 +24,7 @@ private:
     int win_times{0};//打胜仗的次数
     int win{0};//最近一次是否打赢
     bool alive = true;
+    bool removed = false;
 public:
     static const char name[5][7];
     static int health[5];
@@ -31,11 +32,11 @@ public:
     friend class City;
     friend class Camp;
     Warrior(Camp *p,int no_,int wa_id_);
-    void Print(int hour);
+    void Print(const int& hour) const;
     void Run(const int& hour);
     void Move(const int& hour);
     static bool Shoot(Warrior* me, Warrior *enemy);
-    static void Bomb(Warrior* me, Warrior *enemy, const int& turn, const int& hour);
+    static bool Bomb(Warrior* me, Warrior *enemy, const int& turn, const int& hour);
     //void Grab(const int& hour);
     static int Attack(Warrior* me,Warrior *enemy, const unsigned short& turn);
     void Yell(const int &hour) const;
@@ -83,7 +84,7 @@ public:
     void Roaming();
     void Bonus();
     void Report(const int& hour) const;
-    void ReportWarrior(const int&hour);
+    void ReportWarrior(const int&hour) const;
     string Get_Color() const;
     int city() const;
 };
@@ -184,15 +185,15 @@ public:
     void Element_Plus(const int& delta) { elements += delta;}
     void Element_Take(const int& hour) {
         if (pWarriorRB[0] == nullptr && pWarriorRB[1] == nullptr) return;
-        if (pWarriorRB[0] == nullptr || !pWarriorRB[0]->alive && pWarriorRB[1]->alive) {
-            if (elements<=0) return;
-            printf("%03d:30 blue %s %d earned %d elements for his headquarter\n",hour,Warrior::name[pWarriorRB[1]->wa_id],pWarriorRB[1]->no,elements);
-            pWarriorRB[1]->pc->HP+=elements,elements=0;
-        }
-        else if (pWarriorRB[1] == nullptr || !pWarriorRB[1]->alive && pWarriorRB[0]->alive) {
+        if ((pWarriorRB[1] != nullptr && !pWarriorRB[1]->alive || pWarriorRB[1] == nullptr) && pWarriorRB[0] != nullptr && pWarriorRB[0]->alive) {
             if (elements<=0) return;
             printf("%03d:30 red %s %d earned %d elements for his headquarter\n",hour,Warrior::name[pWarriorRB[0]->wa_id],pWarriorRB[0]->no,elements);
             pWarriorRB[0]->pc->HP+=elements,elements=0;
+        }
+        else if ((pWarriorRB[0] != nullptr && !pWarriorRB[0]->alive || pWarriorRB[0] == nullptr) && pWarriorRB[1] != nullptr && pWarriorRB[1]->alive) {
+            if (elements<=0) return;
+            printf("%03d:30 blue %s %d earned %d elements for his headquarter\n",hour,Warrior::name[pWarriorRB[1]->wa_id],pWarriorRB[1]->no,elements);
+            pWarriorRB[1]->pc->HP+=elements,elements=0;
         }
     }
     void report(const int& hour){
@@ -217,22 +218,24 @@ public:
     void Shoot(const int& hour) {
         for (int i = 0;i<2;++i)
             if (pWarriorRB[i] != nullptr && pCity[city_id-2*i+1]->pWarriorRB[1-i] != nullptr && pWarriorRB[i]->pc->pAttribute[pWarriorRB[i]->no -1]->weapon_id[2] > 0 &&
-                (2 * i - 1)*city_id > pWarriorRB[i]->pc->city() - n && pWarriorRB[i]->alive && pCity[city_id-2*i+1]->pWarriorRB[1-i]->alive) {
+                (2 * i - 1)*city_id > pWarriorRB[i]->pc->city() - n && !pWarriorRB[i]->removed && !pCity[city_id-2*i+1]->pWarriorRB[1-i]->removed) {
                 printf("%03d:35 %s %s %d shot",hour,pWarriorRB[i]->pc->Get_Color().c_str(),Warrior::name[pWarriorRB[i]->wa_id],pWarriorRB[i]->no);
                 if (Warrior::Shoot(pWarriorRB[i],pCity[city_id-2*i+1]->pWarriorRB[1-i]))
                     printf(" and killed %s %s %d",pCity[city_id-2*i+1]->pWarriorRB[1-i]->pc->Get_Color().c_str(),Warrior::name[pCity[city_id-2*i+1]->pWarriorRB[1-i]->wa_id],pCity[city_id-2*i+1]->pWarriorRB[1-i]->no);
                 putchar('\n');
-
             }
     }
     void Bomb(const int& hour) {
-        for (int i=0;i<2;++i)
-            if (pWarriorRB[i] != nullptr && pWarriorRB[i]->pc->pAttribute[pWarriorRB[i]->no -1]->weapon_id[1] > 0 && pWarriorRB[1-i] != nullptr && pWarriorRB[0]->alive && pWarriorRB[1]->alive) {
-                int turn;
-                if (flag != 1-i && city_id%2 != i || flag == i) turn = i;
-                else turn = 1-i;
-                Warrior::Bomb(pWarriorRB[i],pWarriorRB[1-i],turn,hour);
-            }
+        if (pWarriorRB[0] == nullptr || pWarriorRB[1] == nullptr || !pWarriorRB[0]->alive || !pWarriorRB[1]->alive) return;
+        int turn;
+        if (flag != 1 && city_id%2 || flag == 0) turn = 0;
+        else turn = 1;
+        int order[2];
+        if (turn)
+            order[0]=1,order[1]=0;
+        else order[0]=0,order[1]=1;
+        for (int &i : order)
+            if (pWarriorRB[i]->pc->pAttribute[pWarriorRB[i]->no -1]->weapon_id[1] && Warrior::Bomb(pWarriorRB[i],pWarriorRB[1-i],order[i],hour)) return;
     }
     void Grab(const int& hour) {
         if (pWarriorRB[0] == nullptr || pWarriorRB[1] == nullptr) return;
@@ -251,15 +254,14 @@ public:
                     p[i]->damage_of_sword=p[1-i]->damage_of_sword;
                     //printf("%03d:35 %s wolf %d took %d %s from %s %s %d in city %d\n",hour,pWarriorRB[i]->pc->Get_Color().c_str(),pWarriorRB[i]->no,cnt,Attribute::weapon[0],pWarriorRB[1-i]->pc->Get_Color().c_str(),Warrior::name[pWarriorRB[1-i]->wa_id],pWarriorRB[1-i]->no,city_id);
                 }
-
-                else if (p[1-i]->weapon_id[1] && !p[i]->weapon_id[1]) {
+                if (p[1-i]->weapon_id[1] && !p[i]->weapon_id[1]) {
                     p[1-i]->weapon_id[1]=false;
                     p[1-i]->total--;
                     p[i]->weapon_id[1]=true;
                     p[i]->total++;
                     //printf("%03d:35 red wolf %d took %d %s from blue %s %d in city %d\n",hour,pWarriorRed->no,cnt,Attribute::weapon[1],Warrior::name[pWarriorBlue->wa_id],pWarriorBlue->no,city_id);
                 }
-                else if (p[1-i]->weapon_id[2] && !p[i]->weapon_id[2]){
+                if (p[1-i]->weapon_id[2] && !p[i]->weapon_id[2]){
                     p[1-i]->weapon_id[2]=false;
                     p[1-i]->total--;
                     p[i]->weapon_id[2]=true;
@@ -273,13 +275,13 @@ public:
             }
     }
     void Attack_Yell(const int& hour) {
-        if (pWarriorRB[0] == nullptr || pWarriorRB[1] == nullptr) return;
+        if (pWarriorRB[0] == nullptr || pWarriorRB[1] == nullptr || pWarriorRB[0]->removed || pWarriorRB[1]->removed) return;
         int Lion_life[2]{0,0};
         for (int i=0;i<2;++i)
             if (pWarriorRB[i]->wa_id == 3) Lion_life[i]=pWarriorRB[i]->pc->pAttribute[pWarriorRB[i]->no - 1]->elements;
         //Attack部分
         int red_blue[2]{pWarriorRB[0]->alive,pWarriorRB[1]->alive};//红蓝方是否存活
-        int win=-1,killed,cnt=0;//同时存活/平局为-1，红方赢为0，蓝方赢为1
+        int win=-1,killed;//同时存活/平局为-1，红方赢为0，蓝方赢为1
         unsigned short i;
         auto f=[&](const unsigned short&x)->string{if (x) return "blue";return "red";};
         if (flag != 1 && city_id % 2 || flag == 0)//红武士先发动进攻
@@ -287,8 +289,8 @@ public:
         else i=1;//蓝武士先发动进攻
         if (red_blue[0]+red_blue[1]==0) return;
         if (red_blue[0]+red_blue[1]==1) {
-            if (red_blue[i]) win = i;//pWarriorRB[i]->win=1,pWarriorRB[1-i]->win=0;
-            else win = 1-i;//pWarriorRB[1-i]->win=1,pWarriorRB[i]->win=0;
+            if (red_blue[i]) win = i,pWarriorRB[i]->win=1,pWarriorRB[1-i]->win=0;
+            else win = 1-i,pWarriorRB[1-i]->win=1,pWarriorRB[i]->win=0;
             goto step9;
         }
         //(6) 武士主动进攻部分
@@ -317,6 +319,7 @@ public:
                 if (killed) {
                     win = 1-i;
                     pWarriorRB[i]->alive=false;
+                    pWarriorRB[i]->win=0;
                     pWarriorRB[1-i]->win=1;
 
                     if (pWarriorRB[i]->wa_id == 3)
@@ -333,8 +336,7 @@ public:
             printf("%03d:40 %s %s %d was killed in city %d\n",hour,f(i).c_str(),Warrior::name[pWarriorRB[i]->wa_id],pWarriorRB[i]->no,city_id);
         //(9) Yell部分
     step9:
-        pWarriorRB[0]->Yell(hour);
-        pWarriorRB[1]->Yell(hour);
+        pWarriorRB[i]->Yell(hour);
         //(10) 武士获取elements部分
         for (int rb=0;rb<2;++rb)
             if (win == rb) {
@@ -353,9 +355,10 @@ public:
             streak+=1-2*win;
             if (streak*(1-2*win)==2 && flag != win) {
                 flag=win;
-                printf("%03d %s flag raised in city %d\n",hour,f(win).c_str(),city_id);
+                printf("%03d:40 %s flag raised in city %d\n",hour,f(win).c_str(),city_id);
             }
         }
+        else if (streak==0) streak+=1-2*win;
         else streak=0;
     }
 };
@@ -367,10 +370,9 @@ int Warrior::attack[5];
 int Camp::Seq[2][5] = { { 2,3,4,1,0 },{3,0,1,2,4} }; //两个司令部武士的制作顺序序列
 
 Warrior::Warrior( Camp *pCamp,int no_,int kindNo_) : no(no_),wa_id(kindNo_),pc(pCamp),city_id(pCamp->city()),alive(true){}
-void Warrior::Print(int hour)
+void Warrior::Print(const int& hour) const
 {
-    string color=pc->Get_Color();
-    printf("%03d:00 %s %s %d born\n", hour, color.c_str(), name[wa_id], no);
+    printf("%03d:00 %s %s %d born\n", hour, pc->Get_Color().c_str(), name[wa_id], no);
     if (wa_id == 0)
         printf("Its morale is %.2f\n", pc->pAttribute[no - 1]->morale);
     else if (wa_id == 3) printf("Its loyalty is %d\n", pc->pAttribute[no - 1]->loyalty);
@@ -387,10 +389,14 @@ void Warrior::Move(const int& hour){
     /**以下这两行是后来另加的，不知道到底是否需要*/
     win_times+=win;
     win = 0;
-    if (!alive) return;
+    if (!alive) {
+        removed=true;
+        return;
+    }
     if (pc->color && city_id > 0) {
         pCity[city_id]->pWarriorRB[1] = nullptr;
         pCity[--city_id]->pWarriorRB[1] = this;
+        if (!alive) return;
         pCity[city_id]->update[1] = true;
         if (wa_id == 2 && (n+1-city_id)%2==0 && city_id > 0) {
             int& elements=pc->pAttribute[no - 1]->elements;
@@ -424,8 +430,8 @@ int Warrior::Attack(Warrior* me, Warrior *enemy, const unsigned short& turn) {
     return enemy_life <= 0;//有没有杀死
 }
 void Warrior::Yell(const int &hour) const{
-    if (wa_id>0 || !alive) return;
-    printf("%03d:40 %s dragon yelled in city %d\n",hour,pc->Get_Color().c_str(),city_id);
+    if (wa_id>0 || !alive || pc->pAttribute[no-1]->morale<=0.8) return;
+    printf("%03d:40 %s dragon %d yelled in city %d\n",hour,pc->Get_Color().c_str(),no,city_id);
 }
 bool Warrior::Shoot(Warrior* me, Warrior *enemy) {
     int& durable=me->pc->pAttribute[me->no - 1]->durable;
@@ -445,28 +451,31 @@ bool Warrior::Shoot(Warrior* me, Warrior *enemy) {
     enemy_life-=r;
     return false;
 }
-void Warrior::Bomb(Warrior* me, Warrior *enemy, const int& turn, const int& hour) {
+bool Warrior::Bomb(Warrior* me, Warrior *enemy, const int& turn, const int& hour) {
     //auto f=[&](const unsigned short&x)->string{if (x) return "blue";return "red";};
     int damage;
-    //if (turn)
-    {//反击的一方
+    if (turn)
+    {//后攻击的一方
+        //if (me->pc->pAttribute[me->no - 1]->wa_id==1) return false;
         damage=enemy->pc->pAttribute[enemy->no-1]->damage;
         if (enemy->pc->pAttribute[enemy->no-1]->weapon_id[0]) damage+=enemy->pc->pAttribute[enemy->no-1]->damage_of_sword;
-        if (me->pc->pAttribute[me->no - 1]->elements > damage) return;
+        if (me->pc->pAttribute[me->no - 1]->elements > damage) return false;
     }
-    //else
-    {//主动攻击的一方
+    else
+    {//先攻击的一方
+        if (enemy->pc->pAttribute[enemy->no - 1]->wa_id==1) return false;
         damage=me->pc->pAttribute[me->no-1]->damage;
         if (me->pc->pAttribute[me->no-1]->weapon_id[0]) damage+=me->pc->pAttribute[me->no-1]->damage_of_sword;
         int enemy_life = enemy->pc->pAttribute[enemy->no - 1]->elements;
-        if (enemy_life<=damage) return;
+        if (enemy_life<=damage) return false;
         damage=enemy->pc->pAttribute[enemy->no-1]->damage/2;
         if (enemy->pc->pAttribute[enemy->no-1]->weapon_id[0]) damage+=enemy->pc->pAttribute[enemy->no-1]->damage_of_sword;
-        if (me->pc->pAttribute[me->no - 1]->elements > damage) return;
+        if (me->pc->pAttribute[me->no - 1]->elements > damage) return false;
     }
     printf("%03d:38 %s %s %d used a bomb and killed %s %s %d\n",hour,me->pc->Get_Color().c_str(),Warrior::name[me->wa_id],me->no,enemy->pc->Get_Color().c_str(),Warrior::name[enemy->wa_id],enemy->no);
     me->pc->pAttribute[me->no-1]->elements = enemy->pc->pAttribute[enemy->no-1]->elements = 0;
     me->alive = enemy->alive = false;
+    return true;
 }
 void Warrior::Report(const int& hour) {
     if (!alive) {
@@ -528,9 +537,7 @@ void Camp::Move(const int& hour){
     for (int i=0;i<wa_num;++i) pWarrior[i]->Move(hour);
 }
 //void Camp::Grab(const int& hour){}
-void Camp::Roaming() {
-    HP_Roaming = HP;
-}
+void Camp::Roaming() { HP_Roaming = HP;}
 void Camp::Bonus() {
     int cnt = 0;
     for (int i=0;i<wa_num;++i)
@@ -554,7 +561,7 @@ int Camp::city() const {
 void Camp::Report(const int& hour) const {
     printf("%03d:50 %d elements in %s headquarter\n",hour,HP,Get_Color().c_str());
 }
-void Camp::ReportWarrior(const int& hour){
+void Camp::ReportWarrior(const int& hour) const {
     if (color)
         for (int i=0;i<wa_num;++i)
             pWarrior[i]->Report(hour);
@@ -582,8 +589,8 @@ int main()
         //Blue.Init(1,m);
         int hour=0;
         while (60*hour <= t) {
-            bool sign=Red.Produce(hour);
-            bool flag=Blue.Produce(hour);
+            Red.Produce(hour);
+            Blue.Produce(hour);
             //在每个小时的第5分，该逃跑的lion就在这一时刻逃跑了。
             if (60*hour+5 > t) break;
             Red.Run_at5(hour);
@@ -627,7 +634,7 @@ int main()
             if (60*hour+55 > t) break;
             Red.ReportWarrior(hour);
             Blue.ReportWarrior(hour);
-            if(!sign&&!flag) break;
+            //if(!sign&&!flag) break;
             ++hour;
         }
         for (int i=0;i<n+2;++i) delete pCity[i];
